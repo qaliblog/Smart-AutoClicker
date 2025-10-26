@@ -59,8 +59,15 @@ android {
         versionCode = 80
         versionName = "3.4.0"
         
-        // Add placeholder for Google Ads
+        // Add placeholders for Google Ads and Revenue
         manifestPlaceholders["adsApplicationId"] = "ca-app-pub-3940256099942544~3347511713"
+        
+        // Add BuildConfig fields for revenue feature
+        buildConfigField("String[]", "CONSENT_TEST_DEVICES_IDS", "null")
+        buildConfigField("int", "CONSENT_TEST_GEOGRAPHY", "0") // DEBUG_GEOGRAPHY_DISABLED
+        buildConfigField("String[]", "ADS_TEST_DEVICES_IDS", "null")
+        buildConfigField("String", "ADS_UNIT_ID", "\"ca-app-pub-3940256099942544/1033173712\"")
+        buildConfigField("String", "BILLING_PUBLIC_KEY", "\"test_key\"")
     }
 
     if (project.isBuildForVariant(KlickrFlavour.F_DROID, KlickrBuildType.DEBUG)) {
