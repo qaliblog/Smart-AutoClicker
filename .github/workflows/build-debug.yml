@@ -22,7 +22,7 @@ jobs:
         distribution: 'temurin'
         
     - name: Cache Gradle packages
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: |
           ~/.gradle/caches
@@ -38,14 +38,14 @@ jobs:
       run: ./gradlew assembleDebug
       
     - name: Upload Debug APK
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: vr-magnet-clicker-debug
         path: smartautoclicker/build/outputs/apk/debug/*.apk
         retention-days: 30
         
     - name: Upload Build Logs
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: failure()
       with:
         name: build-logs
