@@ -25,13 +25,11 @@ import androidx.lifecycle.viewModelScope
 
 import com.buzbuz.smartautoclicker.core.processing.domain.DetectionRepository
 import com.buzbuz.smartautoclicker.core.processing.domain.DetectionState
-import com.buzbuz.smartautoclicker.feature.revenue.IRevenueRepository
 import com.buzbuz.smartautoclicker.feature.smart.config.domain.EditionRepository
 import com.buzbuz.smartautoclicker.feature.smart.debugging.domain.DebuggingRepository
 import com.buzbuz.smartautoclicker.core.ui.monitoring.MonitoredViewsManager
 import com.buzbuz.smartautoclicker.core.ui.monitoring.ViewPositioningType
 import com.buzbuz.smartautoclicker.core.ui.monitoring.MonitoredViewType
-import com.buzbuz.smartautoclicker.feature.revenue.UserBillingState
 import com.buzbuz.smartautoclicker.feature.tutorial.domain.TutorialRepository
 
 import kotlinx.coroutines.Dispatchers
@@ -54,7 +52,6 @@ class MainMenuModel @Inject constructor(
     private val detectionRepository: DetectionRepository,
     private val editionRepository: EditionRepository,
     private val tutorialRepository: TutorialRepository,
-    private val revenueRepository: IRevenueRepository,
     private val monitoredViewsManager: MonitoredViewsManager,
     private val debugRepository: DebuggingRepository,
 ) : ViewModel() {
@@ -67,11 +64,6 @@ class MainMenuModel @Inject constructor(
             initialValue = null,
         )
 
-    private var paywallResultJob: Job? = null
-
-    /** Tells if the paywall is currently displayed. */
-    val paywallIsVisible: Flow<Boolean> =
-        revenueRepository.isBillingFlowInProgress
 
     /** The current of the detection. */
     val detectionState: StateFlow<UiState> = detectionRepository.detectionState
@@ -101,19 +93,12 @@ class MainMenuModel @Inject constructor(
         .map { it == DetectionState.ERROR_NO_NATIVE_LIB }
         .distinctUntilChanged()
 
-    /** Load an advertisement, if needed. Should be called before showing the paywall to reduce user waiting time. */
-    fun loadAdIfNeeded(context: Context) {
-        revenueRepository.loadAdIfNeeded(context)
-    }
 
     /** Start/Stop the detection. */
     fun toggleDetection(context: Context) {
         when (detectionState.value) {
             UiState.Detecting -> stopDetection()
-            UiState.Idle -> {
-                if (revenueRepository.userBillingState.value.isAdRequested()) startPaywall(context)
-                else startDetection(context)
-            }
+            UiState.Idle -> startDetection(context)
         }
     }
 
@@ -125,26 +110,13 @@ class MainMenuModel @Inject constructor(
         return true
     }
 
-    private fun startPaywall(context: Context) {
-        revenueRepository.startPaywallUiFlow(context)
-
-        paywallResultJob = combine(revenueRepository.isBillingFlowInProgress, revenueRepository.userBillingState) { inProgress, state ->
-            if (inProgress) return@combine
-
-            Log.d(TAG, "onPaywall finished")
-
-            if (!state.isAdRequested()) startDetection(context)
-            paywallResultJob?.cancel()
-            paywallResultJob = null
-        }.launchIn(viewModelScope)
-    }
 
     private fun startDetection(context: Context) {
         viewModelScope.launch {
             detectionRepository.startDetection(
                 context,
                 debugRepository.getDebugDetectionListenerIfNeeded(context),
-                revenueRepository.consumeTrial(),
+                null, // No trial consumption needed
             )
         }
     }
@@ -200,8 +172,6 @@ class MainMenuModel @Inject constructor(
     fun setStopWithVolumeDownDontShowAgain(): Unit =
         tutorialRepository.setStopWithVolumeDownDontShowAgain()
 
-    private fun UserBillingState.isAdRequested(): Boolean =
-        this == UserBillingState.AD_REQUESTED
 }
 
 sealed class UiState {
