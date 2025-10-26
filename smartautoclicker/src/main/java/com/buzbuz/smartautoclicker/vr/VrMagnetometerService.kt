@@ -68,7 +68,9 @@ class VrMagnetometerService : Service(), SensorEventListener {
     private var serviceScope = CoroutineScope(Dispatchers.Main)
     private var clickJob: Job? = null
     
+    // Static reference to click manager
     companion object {
+        var clickManager: VrClickManager? = null
         private const val TAG = "VrMagnetometerService"
         private const val NOTIFICATION_ID = 1001
         private const val CHANNEL_ID = "vr_magnetometer_channel"
@@ -116,7 +118,7 @@ class VrMagnetometerService : Service(), SensorEventListener {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("VR Magnet Clicker")
             .setContentText("Monitoring VR headset magnet for click gestures")
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
@@ -197,7 +199,7 @@ class VrMagnetometerService : Service(), SensorEventListener {
             isGestureInProgress = true
             
             // Trigger click action
-            clickAction?.invoke()
+            clickManager?.performVrClick()
             
             // Reset gesture state after a short delay
             serviceScope.launch {

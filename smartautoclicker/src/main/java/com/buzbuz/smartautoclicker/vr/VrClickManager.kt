@@ -51,6 +51,11 @@ class VrClickManager @Inject constructor(
     
     fun isEnabled(): Boolean = isEnabled
     
+    fun setClickAction(action: () -> Unit) {
+        // Store the click action for later use
+        // This is a placeholder - the actual click action is handled by performVrClick()
+    }
+    
     fun performVrClick() {
         if (!isEnabled) {
             Log.d(TAG, "VR click manager is disabled, ignoring click")

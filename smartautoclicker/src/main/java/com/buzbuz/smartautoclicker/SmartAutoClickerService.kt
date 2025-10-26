@@ -185,12 +185,14 @@ class SmartAutoClickerService : AccessibilityService() {
     
     private fun initializeVrService() {
         try {
+            // Set the static reference to click manager
+            VrMagnetometerService.clickManager = vrClickManager
+            
             val vrIntent = Intent(this, VrMagnetometerService::class.java)
             startService(vrIntent)
             
-            // Set up click action for VR service
+            // Set up VR service
             vrClickManager.setEnabled(true)
-            vrClickManager.setClickAction { vrClickManager.performVrClick() }
             
             Log.i(TAG, "VR magnetometer service initialized")
         } catch (e: Exception) {
