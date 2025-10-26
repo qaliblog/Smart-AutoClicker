@@ -61,4 +61,11 @@
         android:title="@string/menu_item_title_settings"
         tools:ignore="AlwaysShowAction" />
 
+    <item
+        android:id="@+id/action_vr_settings"
+        android:icon="@drawable/ic_vr_headset"
+        app:showAsAction="always"
+        android:title="VR Settings"
+        tools:ignore="AlwaysShowAction" />
+
 </menu>

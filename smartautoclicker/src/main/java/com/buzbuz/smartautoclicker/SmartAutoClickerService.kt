@@ -46,6 +46,8 @@ import com.buzbuz.smartautoclicker.feature.review.ReviewRepository
 import com.buzbuz.smartautoclicker.feature.smart.debugging.domain.DebuggingRepository
 import com.buzbuz.smartautoclicker.localservice.LocalService
 import com.buzbuz.smartautoclicker.localservice.LocalServiceProvider
+import com.buzbuz.smartautoclicker.vr.VrMagnetometerService
+import com.buzbuz.smartautoclicker.vr.VrClickManager
 
 import dagger.hilt.android.AndroidEntryPoint
 import java.io.FileDescriptor
@@ -88,12 +90,18 @@ class SmartAutoClickerService : AccessibilityService() {
     @Inject lateinit var reviewRepository: ReviewRepository
     @Inject lateinit var appComponentsProvider: AppComponentsProvider
     @Inject lateinit var actionExecutor: AndroidActionExecutor
+    @Inject lateinit var vrClickManager: VrClickManager
+
+    private var vrMagnetometerService: VrMagnetometerService? = null
 
     override fun onServiceConnected() {
         super.onServiceConnected()
 
         qualityMetricsMonitor.onServiceConnected()
         actionExecutor.init(this)
+        
+        // Initialize VR functionality
+        initializeVrService()
 
         tileRepository.setTileActionHandler(
             object : QSTileActionHandler {
@@ -170,6 +178,35 @@ class SmartAutoClickerService : AccessibilityService() {
 
         displayConfigManager.stopMonitoring()
         bitmapManager.clearCache()
+        
+        // Stop VR service
+        stopVrService()
+    }
+    
+    private fun initializeVrService() {
+        try {
+            val vrIntent = Intent(this, VrMagnetometerService::class.java)
+            startService(vrIntent)
+            
+            // Set up click action for VR service
+            vrClickManager.setEnabled(true)
+            vrClickManager.setClickAction { vrClickManager.performVrClick() }
+            
+            Log.i(TAG, "VR magnetometer service initialized")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to initialize VR service", e)
+        }
+    }
+    
+    private fun stopVrService() {
+        try {
+            val vrIntent = Intent(this, VrMagnetometerService::class.java)
+            stopService(vrIntent)
+            vrClickManager.setEnabled(false)
+            Log.i(TAG, "VR magnetometer service stopped")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to stop VR service", e)
+        }
     }
 
     override fun onKeyEvent(event: KeyEvent?): Boolean =

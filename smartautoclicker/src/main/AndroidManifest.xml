@@ -26,6 +26,13 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
     <!-- Needed to keep the screen active while detecting, only if defined by the user. -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Needed to access magnetometer for VR headset detection -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <!-- Needed to run in background -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- Needed for magnetometer access -->
+    <uses-feature android:name="android.hardware.sensor.accelerometer" android:required="false" />
+    <uses-feature android:name="android.hardware.sensor.magnetometer" android:required="true" />
 
     <application
         android:name="${smartAutoClickerApplication}"
@@ -50,6 +57,11 @@
             android:name="com.buzbuz.smartautoclicker.settings.SettingsActivity"
             android:exported="false" />
 
+        <activity
+            android:name="com.buzbuz.smartautoclicker.vr.VrSettingsActivity"
+            android:exported="true"
+            android:label="VR Settings" />
+
         <service
             android:name="${smartAutoClickerService}"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
@@ -61,6 +73,11 @@
             </intent-filter>
             <meta-data android:name="android.accessibilityservice" android:resource="@xml/accessibilityservice" />
         </service>
+
+        <service
+            android:name="com.buzbuz.smartautoclicker.vr.VrMagnetometerService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false" />
 
     </application>
 

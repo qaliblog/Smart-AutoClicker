@@ -50,6 +50,7 @@ import com.buzbuz.smartautoclicker.scenarios.list.model.ScenarioListUiState
 import com.buzbuz.smartautoclicker.scenarios.migration.ConditionsMigrationFragment.Companion.FRAGMENT_RESULT_KEY_COMPLETED
 import com.buzbuz.smartautoclicker.scenarios.migration.ConditionsMigrationFragment.Companion.FRAGMENT_TAG_CONDITION_MIGRATION_DIALOG
 import com.buzbuz.smartautoclicker.settings.SettingsActivity
+import com.buzbuz.smartautoclicker.vr.VrSettingsActivity
 
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.shape.MaterialShapeDrawable
@@ -151,6 +152,7 @@ class ScenarioListFragment : Fragment() {
             R.id.action_search -> scenarioListViewModel.setUiState(ScenarioListUiState.Type.SEARCH)
             R.id.action_select_all -> scenarioListViewModel.toggleAllScenarioSelectionForBackup()
             R.id.action_settings -> startSettingsActivity()
+            R.id.action_vr_settings -> startVrSettingsActivity()
             else -> return false
         }
 
@@ -332,6 +334,10 @@ class ScenarioListFragment : Fragment() {
 
     private fun startSettingsActivity() {
         requireContext().startActivity(Intent(context, SettingsActivity::class.java))
+    }
+    
+    private fun startVrSettingsActivity() {
+        requireContext().startActivity(Intent(context, VrSettingsActivity::class.java))
     }
 }
 
