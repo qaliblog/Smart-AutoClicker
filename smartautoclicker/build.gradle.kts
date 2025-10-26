@@ -58,6 +58,9 @@ android {
 
         versionCode = 80
         versionName = "3.4.0"
+        
+        // Add placeholder for Google Ads
+        manifestPlaceholders["adsApplicationId"] = "ca-app-pub-3940256099942544~3347511713"
     }
 
     if (project.isBuildForVariant(KlickrFlavour.F_DROID, KlickrBuildType.DEBUG)) {
