@@ -142,6 +142,9 @@ class SmartAutoClickerService : AccessibilityService() {
             "UPDATE_VR_THRESHOLD" -> {
                 updateVrServiceThreshold(intent)
             }
+            "RESET_VR_CALIBRATION" -> {
+                resetVrServiceCalibration()
+            }
         }
         return super.onStartCommand(intent, flags, startId)
     }
@@ -243,6 +246,17 @@ class SmartAutoClickerService : AccessibilityService() {
             Log.i(TAG, "VR service threshold updated to: $threshold")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to update VR service threshold", e)
+        }
+    }
+    
+    private fun resetVrServiceCalibration() {
+        try {
+            val vrIntent = Intent(this, VrMagnetometerService::class.java)
+            vrIntent.action = "RESET_VR_CALIBRATION"
+            startService(vrIntent)
+            Log.i(TAG, "VR service calibration reset requested")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to reset VR service calibration", e)
         }
     }
 

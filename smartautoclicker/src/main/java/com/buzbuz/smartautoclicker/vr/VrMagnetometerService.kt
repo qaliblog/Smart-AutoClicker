@@ -43,6 +43,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
+import kotlin.math.pow
 import kotlin.math.sqrt
 
 /**
@@ -66,6 +67,13 @@ class VrMagnetometerService : Service(), SensorEventListener {
     private var isGestureInProgress = false
     private var gestureThreshold = 15.0f // Minimum change in magnetic field to trigger gesture
     private var gestureCooldown = 1000L // Minimum time between gestures in milliseconds
+    
+    // Enhanced gesture detection
+    private var magneticFieldHistory = mutableListOf<FloatArray>()
+    private var accelerationHistory = mutableListOf<FloatArray>()
+    private val maxHistorySize = 10
+    private var baselineMagneticField = FloatArray(3)
+    private var isBaselineSet = false
     
     // SharedPreferences for threshold persistence
     private lateinit var sharedPreferences: SharedPreferences
@@ -105,6 +113,12 @@ class VrMagnetometerService : Service(), SensorEventListener {
             val newThreshold = intent.getFloatExtra("threshold", DEFAULT_THRESHOLD)
             setGestureThreshold(newThreshold)
             Log.i(TAG, "Threshold updated to: $newThreshold")
+        }
+        
+        // Handle calibration reset intent
+        if (intent?.action == "RESET_VR_CALIBRATION") {
+            resetBaseline()
+            Log.i(TAG, "Calibration reset requested")
         }
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
@@ -208,8 +222,19 @@ class VrMagnetometerService : Service(), SensorEventListener {
     private fun handleMagnetometerData(values: FloatArray) {
         if (!isInitialized) {
             lastMagneticField = values.clone()
+            baselineMagneticField = values.clone()
             isInitialized = true
             return
+        }
+        
+        // Add to history for pattern analysis
+        addToHistory(magneticFieldHistory, values.clone())
+        addToHistory(accelerationHistory, lastAcceleration.clone())
+        
+        // Set baseline after collecting some data
+        if (!isBaselineSet && magneticFieldHistory.size >= 5) {
+            baselineMagneticField = calculateBaseline(magneticFieldHistory)
+            isBaselineSet = true
         }
         
         // Calculate the change in magnetic field
@@ -258,10 +283,126 @@ class VrMagnetometerService : Service(), SensorEventListener {
     }
     
     private fun isMagnetPullDownGesture(values: FloatArray): Boolean {
-        // Simple heuristic: check if Z-axis (vertical) magnetic field changed significantly
-        // This is a basic implementation - you might need to adjust based on your VR headset
-        val zChange = abs(values[2] - lastMagneticField[2])
-        return zChange > gestureThreshold * 0.7f // Z-axis is more sensitive for pull-down
+        if (!isBaselineSet || magneticFieldHistory.size < 3) {
+            return false
+        }
+        
+        // Calculate changes from baseline
+        val deltaFromBaselineX = abs(values[0] - baselineMagneticField[0])
+        val deltaFromBaselineY = abs(values[1] - baselineMagneticField[1])
+        val deltaFromBaselineZ = abs(values[2] - baselineMagneticField[2])
+        val totalDeltaFromBaseline = sqrt(deltaFromBaselineX * deltaFromBaselineX + 
+                                        deltaFromBaselineY * deltaFromBaselineY + 
+                                        deltaFromBaselineZ * deltaFromBaselineZ)
+        
+        // Check if the change is significant enough
+        if (totalDeltaFromBaseline < gestureThreshold) {
+            return false
+        }
+        
+        // Analyze the pattern of magnetic field changes over time
+        val isPullDownPattern = analyzePullDownPattern()
+        
+        // Check for device movement that indicates intentional gesture
+        val hasIntentionalMovement = hasIntentionalDeviceMovement()
+        
+        // Check if this looks like a VR headset pull-down vs phone back magnet
+        val isVrHeadsetGesture = isVrHeadsetGesture(values)
+        
+        Log.d(TAG, "Gesture analysis: totalDelta=$totalDeltaFromBaseline, isPullDown=$isPullDownPattern, hasMovement=$hasIntentionalMovement, isVrGesture=$isVrHeadsetGesture")
+        
+        return isPullDownPattern && hasIntentionalMovement && isVrHeadsetGesture
+    }
+    
+    private fun addToHistory(history: MutableList<FloatArray>, values: FloatArray) {
+        history.add(values)
+        if (history.size > maxHistorySize) {
+            history.removeAt(0)
+        }
+    }
+    
+    private fun calculateBaseline(history: List<FloatArray>): FloatArray {
+        val baseline = FloatArray(3)
+        for (values in history) {
+            baseline[0] += values[0]
+            baseline[1] += values[1]
+            baseline[2] += values[2]
+        }
+        baseline[0] /= history.size
+        baseline[1] /= history.size
+        baseline[2] /= history.size
+        return baseline
+    }
+    
+    private fun analyzePullDownPattern(): Boolean {
+        if (magneticFieldHistory.size < 3) return false
+        
+        // Look for a pattern where Z-axis (vertical) changes significantly
+        // in a downward direction (negative Z change for pull-down)
+        val recentValues = magneticFieldHistory.takeLast(3)
+        val zChanges = mutableListOf<Float>()
+        
+        for (i in 1 until recentValues.size) {
+            val zChange = recentValues[i][2] - recentValues[i-1][2]
+            zChanges.add(zChange)
+        }
+        
+        // Check if there's a consistent downward trend
+        val negativeChanges = zChanges.count { it < 0 }
+        val significantChanges = zChanges.count { abs(it) > gestureThreshold * 0.3f }
+        
+        return negativeChanges >= 1 && significantChanges >= 1
+    }
+    
+    private fun hasIntentionalDeviceMovement(): Boolean {
+        if (accelerationHistory.size < 3) return false
+        
+        // Calculate acceleration magnitude changes
+        val recentAccel = accelerationHistory.takeLast(3)
+        val accelMagnitudes = recentAccel.map { values ->
+            sqrt(values[0] * values[0] + values[1] * values[1] + values[2] * values[2])
+        }
+        
+        // Look for significant acceleration changes that indicate intentional movement
+        val maxAccelChange = accelMagnitudes.zipWithNext { a, b -> abs(a - b) }.maxOrNull() ?: 0f
+        return maxAccelChange > 1.0f // Threshold for intentional movement
+    }
+    
+    private fun isVrHeadsetGesture(values: FloatArray): Boolean {
+        // Check if the magnetic field change pattern suggests a VR headset pull-down
+        // rather than just placing a magnet on the back of the phone
+        
+        // VR headset pull-down typically involves:
+        // 1. A significant change in Z-axis (vertical pull-down)
+        // 2. Some change in X or Y axis (as the magnet moves in 3D space)
+        // 3. The change should be relatively quick and then stabilize
+        
+        val deltaX = abs(values[0] - lastMagneticField[0])
+        val deltaY = abs(values[1] - lastMagneticField[1])
+        val deltaZ = abs(values[2] - lastMagneticField[2])
+        
+        // Z-axis should have the most significant change for VR headset pull-down
+        val zDominance = deltaZ > (deltaX + deltaY) * 1.5f
+        
+        // The change should be significant enough to indicate a deliberate gesture
+        val significantChange = deltaZ > gestureThreshold * 0.5f
+        
+        // Check if the magnetic field is changing in a way that suggests movement
+        // rather than just static placement
+        val isDynamicChange = magneticFieldHistory.size >= 2 && 
+                             magneticFieldHistory.takeLast(2).let { recent ->
+                                 val prev = recent[0]
+                                 val curr = recent[1]
+                                 val prevDelta = sqrt((prev[0] - baselineMagneticField[0]).pow(2) + 
+                                                     (prev[1] - baselineMagneticField[1]).pow(2) + 
+                                                     (prev[2] - baselineMagneticField[2]).pow(2))
+                                 val currDelta = sqrt((curr[0] - baselineMagneticField[0]).pow(2) + 
+                                                     (curr[1] - baselineMagneticField[1]).pow(2) + 
+                                                     (curr[2] - baselineMagneticField[2]).pow(2))
+                                 abs(currDelta - prevDelta) > gestureThreshold * 0.2f
+                             }
+        
+        return zDominance && significantChange && isDynamicChange
     }
     
     fun setClickAction(action: () -> Unit) {
@@ -274,6 +415,13 @@ class VrMagnetometerService : Service(), SensorEventListener {
         sharedPreferences.edit()
             .putFloat(PREF_THRESHOLD, threshold)
             .apply()
+    }
+    
+    fun resetBaseline() {
+        isBaselineSet = false
+        magneticFieldHistory.clear()
+        accelerationHistory.clear()
+        Log.i(TAG, "Baseline reset - recalibrating magnetic field detection")
     }
     
     private fun loadThresholdFromPreferences() {

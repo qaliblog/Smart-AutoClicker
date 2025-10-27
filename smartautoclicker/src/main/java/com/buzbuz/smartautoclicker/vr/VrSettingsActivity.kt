@@ -93,6 +93,10 @@ class VrSettingsActivity : AppCompatActivity() {
                 testVrClick()
             }
             
+            btnResetCalibration.setOnClickListener {
+                resetCalibration()
+            }
+            
             // Setup threshold slider
             sliderThreshold.addOnChangeListener { _, value, fromUser ->
                 if (fromUser) {
@@ -291,5 +295,14 @@ class VrSettingsActivity : AppCompatActivity() {
         intent.action = "UPDATE_VR_THRESHOLD"
         intent.putExtra("threshold", value)
         startService(intent)
+    }
+    
+    private fun resetCalibration() {
+        // Reset calibration in VR service
+        val intent = Intent(this, SmartAutoClickerService::class.java)
+        intent.action = "RESET_VR_CALIBRATION"
+        startService(intent)
+        
+        Toast.makeText(this, "Calibration reset. The app will recalibrate magnetic field detection.", Toast.LENGTH_LONG).show()
     }
 }
