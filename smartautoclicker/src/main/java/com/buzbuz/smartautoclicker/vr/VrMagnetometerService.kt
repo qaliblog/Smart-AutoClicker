@@ -92,7 +92,7 @@ class VrMagnetometerService : Service(), SensorEventListener {
         private const val CHANNEL_NAME = "VR Magnetometer Service"
         private const val PREF_NAME = "vr_settings"
         private const val PREF_THRESHOLD = "magnetic_field_threshold"
-        private const val DEFAULT_THRESHOLD = 15.0f
+        private const val DEFAULT_THRESHOLD = 80.0f // Adjusted for QMC6308 magnetometer (difference ~111 units)
     }
     
     inner class VrMagnetometerBinder : Binder() {
@@ -247,6 +247,7 @@ class VrMagnetometerService : Service(), SensorEventListener {
         if (totalDelta > gestureThreshold && !isGestureInProgress) {
             val currentTime = System.currentTimeMillis()
             if (currentTime - lastGestureTime > gestureCooldown) {
+                Log.d(TAG, "Significant magnetic field change detected - Total delta: $totalDelta, X: ${values[0]}, Y: ${values[1]}, Z: ${values[2]}")
                 detectGesture(values)
                 lastGestureTime = currentTime
             }
@@ -337,19 +338,21 @@ class VrMagnetometerService : Service(), SensorEventListener {
     private fun analyzePullDownPattern(): Boolean {
         if (magneticFieldHistory.size < 3) return false
         
-        // Look for a pattern where Z-axis (vertical) changes significantly
-        // in a downward direction (negative Z change for pull-down)
+        // Look for a pattern where X-axis changes significantly
+        // in a negative direction (more negative X values for pull-down on QMC6308)
         val recentValues = magneticFieldHistory.takeLast(3)
-        val zChanges = mutableListOf<Float>()
+        val xChanges = mutableListOf<Float>()
         
         for (i in 1 until recentValues.size) {
-            val zChange = recentValues[i][2] - recentValues[i-1][2]
-            zChanges.add(zChange)
+            val xChange = recentValues[i][0] - recentValues[i-1][0]
+            xChanges.add(xChange)
         }
         
-        // Check if there's a consistent downward trend
-        val negativeChanges = zChanges.count { it < 0 }
-        val significantChanges = zChanges.count { abs(it) > gestureThreshold * 0.3f }
+        // Check if there's a consistent negative trend (X values becoming more negative)
+        val negativeChanges = xChanges.count { it < 0 }
+        val significantChanges = xChanges.count { abs(it) > gestureThreshold * 0.2f }
+        
+        Log.d(TAG, "Pull-down pattern analysis - X changes: $xChanges, negative: $negativeChanges, significant: $significantChanges")
         
         return negativeChanges >= 1 && significantChanges >= 1
     }
@@ -369,40 +372,38 @@ class VrMagnetometerService : Service(), SensorEventListener {
     }
     
     private fun isVrHeadsetGesture(values: FloatArray): Boolean {
-        // Check if the magnetic field change pattern suggests a VR headset pull-down
-        // rather than just placing a magnet on the back of the phone
-        
-        // VR headset pull-down typically involves:
-        // 1. A significant change in Z-axis (vertical pull-down)
-        // 2. Some change in X or Y axis (as the magnet moves in 3D space)
-        // 3. The change should be relatively quick and then stabilize
+        // Optimized for QMC6308 magnetometer - X-axis shows the most significant change
+        // Normal: ~-338, Pulled: ~-449 (difference ~111 units)
         
         val deltaX = abs(values[0] - lastMagneticField[0])
         val deltaY = abs(values[1] - lastMagneticField[1])
         val deltaZ = abs(values[2] - lastMagneticField[2])
         
-        // Z-axis should have the most significant change for VR headset pull-down
-        val zDominance = deltaZ > (deltaX + deltaY) * 1.5f
+        // For QMC6308, X-axis shows the most significant change during pull-down
+        val xDominance = deltaX > (deltaY + deltaZ) * 0.8f
         
-        // The change should be significant enough to indicate a deliberate gesture
-        val significantChange = deltaZ > gestureThreshold * 0.5f
+        // Check for significant X-axis change (should be around 100+ units for pull-down)
+        val significantXChange = deltaX > gestureThreshold * 0.6f
         
-        // Check if the magnetic field is changing in a way that suggests movement
-        // rather than just static placement
-        val isDynamicChange = magneticFieldHistory.size >= 2 && 
-                             magneticFieldHistory.takeLast(2).let { recent ->
-                                 val prev = recent[0]
-                                 val curr = recent[1]
-                                 val prevDelta = sqrt((prev[0] - baselineMagneticField[0]).pow(2) + 
-                                                     (prev[1] - baselineMagneticField[1]).pow(2) + 
-                                                     (prev[2] - baselineMagneticField[2]).pow(2))
-                                 val currDelta = sqrt((curr[0] - baselineMagneticField[0]).pow(2) + 
-                                                     (curr[1] - baselineMagneticField[1]).pow(2) + 
-                                                     (curr[2] - baselineMagneticField[2]).pow(2))
-                                 abs(currDelta - prevDelta) > gestureThreshold * 0.2f
-                             }
+        // Check if the change is in the expected direction (more negative X values)
+        val isPullDownDirection = values[0] < lastMagneticField[0] && deltaX > 50.0f
         
-        return zDominance && significantChange && isDynamicChange
+        // Check for quick change and stabilization pattern
+        val isQuickChange = magneticFieldHistory.size >= 2 && 
+                           magneticFieldHistory.takeLast(2).let { recent ->
+                               val prev = recent[0]
+                               val curr = recent[1]
+                               val xChange = abs(curr[0] - prev[0])
+                               xChange > gestureThreshold * 0.3f
+                           }
+        
+        // Additional validation: check if the change is significant enough from baseline
+        val deltaFromBaselineX = abs(values[0] - baselineMagneticField[0])
+        val isSignificantFromBaseline = deltaFromBaselineX > gestureThreshold * 0.7f
+        
+        Log.d(TAG, "QMC6308 Detection - X: ${values[0]}, deltaX: $deltaX, xDominance: $xDominance, significant: $significantXChange, pullDown: $isPullDownDirection")
+        
+        return xDominance && significantXChange && isPullDownDirection && isQuickChange && isSignificantFromBaseline
     }
     
     fun setClickAction(action: () -> Unit) {

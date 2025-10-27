@@ -134,10 +134,10 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:valueFrom="5.0"
-                    android:valueTo="50.0"
-                    android:value="15.0"
-                    android:stepSize="1.0" />
+                    android:valueFrom="20.0"
+                    android:valueTo="150.0"
+                    android:value="80.0"
+                    android:stepSize="5.0" />
 
                 <TextView
                     android:layout_width="wrap_content"
@@ -152,7 +152,7 @@
                 android:id="@+id/tvThresholdValue"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Current Threshold: 15.0"
+                android:text="Current Threshold: 80.0"
                 android:textSize="14sp"
                 android:gravity="center"
                 android:layout_marginBottom="16dp" />
