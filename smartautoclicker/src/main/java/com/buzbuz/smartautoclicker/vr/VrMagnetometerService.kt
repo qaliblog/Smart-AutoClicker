@@ -23,6 +23,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.content.pm.ServiceInfo
 import android.hardware.Sensor
 import android.hardware.SensorEvent
@@ -66,6 +67,9 @@ class VrMagnetometerService : Service(), SensorEventListener {
     private var gestureThreshold = 15.0f // Minimum change in magnetic field to trigger gesture
     private var gestureCooldown = 1000L // Minimum time between gestures in milliseconds
     
+    // SharedPreferences for threshold persistence
+    private lateinit var sharedPreferences: SharedPreferences
+    
     // Click action
     private var clickAction: (() -> Unit)? = null
     private var serviceScope = CoroutineScope(Dispatchers.Main)
@@ -78,6 +82,9 @@ class VrMagnetometerService : Service(), SensorEventListener {
         private const val NOTIFICATION_ID = 1001
         private const val CHANNEL_ID = "vr_magnetometer_channel"
         private const val CHANNEL_NAME = "VR Magnetometer Service"
+        private const val PREF_NAME = "vr_settings"
+        private const val PREF_THRESHOLD = "magnetic_field_threshold"
+        private const val DEFAULT_THRESHOLD = 15.0f
     }
     
     inner class VrMagnetometerBinder : Binder() {
@@ -86,11 +93,20 @@ class VrMagnetometerService : Service(), SensorEventListener {
     
     override fun onCreate() {
         super.onCreate()
+        sharedPreferences = getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+        loadThresholdFromPreferences()
         createNotificationChannel()
         initializeSensors()
     }
     
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Handle threshold update intent
+        if (intent?.action == "UPDATE_VR_THRESHOLD") {
+            val newThreshold = intent.getFloatExtra("threshold", DEFAULT_THRESHOLD)
+            setGestureThreshold(newThreshold)
+            Log.i(TAG, "Threshold updated to: $newThreshold")
+        }
+        
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
             // Android 15+ requires explicit foreground service type
             ServiceCompat.startForeground(
@@ -254,6 +270,15 @@ class VrMagnetometerService : Service(), SensorEventListener {
     
     fun setGestureThreshold(threshold: Float) {
         gestureThreshold = threshold
+        // Save to preferences
+        sharedPreferences.edit()
+            .putFloat(PREF_THRESHOLD, threshold)
+            .apply()
+    }
+    
+    private fun loadThresholdFromPreferences() {
+        gestureThreshold = sharedPreferences.getFloat(PREF_THRESHOLD, DEFAULT_THRESHOLD)
+        Log.i(TAG, "Loaded threshold from preferences: $gestureThreshold")
     }
     
     fun setGestureCooldown(cooldown: Long) {

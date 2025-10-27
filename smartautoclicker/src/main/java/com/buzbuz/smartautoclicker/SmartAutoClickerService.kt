@@ -139,6 +139,9 @@ class SmartAutoClickerService : AccessibilityService() {
             "STOP_VR_SERVICE" -> {
                 stopVrService()
             }
+            "UPDATE_VR_THRESHOLD" -> {
+                updateVrServiceThreshold(intent)
+            }
         }
         return super.onStartCommand(intent, flags, startId)
     }
@@ -227,6 +230,19 @@ class SmartAutoClickerService : AccessibilityService() {
             Log.i(TAG, "VR magnetometer service started")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start VR service", e)
+        }
+    }
+    
+    private fun updateVrServiceThreshold(intent: Intent) {
+        try {
+            val threshold = intent.getFloatExtra("threshold", 15.0f)
+            val vrIntent = Intent(this, VrMagnetometerService::class.java)
+            vrIntent.action = "UPDATE_VR_THRESHOLD"
+            vrIntent.putExtra("threshold", threshold)
+            startService(vrIntent)
+            Log.i(TAG, "VR service threshold updated to: $threshold")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to update VR service threshold", e)
         }
     }
 

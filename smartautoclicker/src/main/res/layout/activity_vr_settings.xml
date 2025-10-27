@@ -98,6 +98,80 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:text="Magnetic Field Threshold"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Adjust the sensitivity of magnetic field detection. Higher values require stronger magnetic field changes to trigger clicks."
+                android:textSize="14sp"
+                android:layout_marginBottom="16dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="8dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Low"
+                    android:textSize="12sp"
+                    android:layout_marginEnd="8dp" />
+
+                <com.google.android.material.slider.Slider
+                    android:id="@+id/sliderThreshold"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:valueFrom="5.0"
+                    android:valueTo="50.0"
+                    android:value="15.0"
+                    android:stepSize="1.0" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="High"
+                    android:textSize="12sp"
+                    android:layout_marginStart="8dp" />
+
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/tvThresholdValue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Current Threshold: 15.0"
+                android:textSize="14sp"
+                android:gravity="center"
+                android:layout_marginBottom="16dp" />
+
+        </LinearLayout>
+
+    </com.google.android.material.card.MaterialCardView>
+
+    <com.google.android.material.card.MaterialCardView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        app:cardCornerRadius="8dp"
+        app:cardElevation="4dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
                 android:text="Test Functionality"
                 android:textSize="18sp"
                 android:textStyle="bold"

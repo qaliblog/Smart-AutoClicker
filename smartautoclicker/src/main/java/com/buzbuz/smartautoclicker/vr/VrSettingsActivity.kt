@@ -22,6 +22,7 @@ import android.app.ActivityManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.hardware.Sensor
 import android.hardware.SensorManager
@@ -47,17 +48,24 @@ class VrSettingsActivity : AppCompatActivity() {
     @Inject lateinit var vrClickManager: VrClickManager
     
     private lateinit var binding: ActivityVrSettingsBinding
+    private lateinit var sharedPreferences: SharedPreferences
     
     companion object {
         private const val REQUEST_CODE_ACCESSIBILITY = 1001
         private const val REQUEST_CODE_BATTERY_OPTIMIZATION = 1002
         private const val REQUEST_CODE_HIGH_SAMPLING_RATE = 1003
+        private const val PREF_NAME = "vr_settings"
+        private const val PREF_THRESHOLD = "magnetic_field_threshold"
+        private const val DEFAULT_THRESHOLD = 15.0f
     }
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityVrSettingsBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        
+        // Initialize SharedPreferences
+        sharedPreferences = getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
         
         setupUI()
         updateUI()
@@ -84,6 +92,15 @@ class VrSettingsActivity : AppCompatActivity() {
             btnTestClick.setOnClickListener {
                 testVrClick()
             }
+            
+            // Setup threshold slider
+            sliderThreshold.addOnChangeListener { _, value, fromUser ->
+                if (fromUser) {
+                    updateThresholdValue(value)
+                    saveThresholdValue(value)
+                    updateVrServiceThreshold(value)
+                }
+            }
         }
     }
     
@@ -106,6 +123,11 @@ class VrSettingsActivity : AppCompatActivity() {
                 else -> "VR Clicker: Disabled"
             }
             tvStatus.text = statusText
+            
+            // Load and set threshold value
+            val thresholdValue = getThresholdValue()
+            sliderThreshold.value = thresholdValue
+            updateThresholdValue(thresholdValue)
         }
     }
     
@@ -247,5 +269,27 @@ class VrSettingsActivity : AppCompatActivity() {
         val sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         val magnetometer = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)
         return magnetometer != null
+    }
+    
+    private fun getThresholdValue(): Float {
+        return sharedPreferences.getFloat(PREF_THRESHOLD, DEFAULT_THRESHOLD)
+    }
+    
+    private fun saveThresholdValue(value: Float) {
+        sharedPreferences.edit()
+            .putFloat(PREF_THRESHOLD, value)
+            .apply()
+    }
+    
+    private fun updateThresholdValue(value: Float) {
+        binding.tvThresholdValue.text = "Current Threshold: ${String.format("%.1f", value)}"
+    }
+    
+    private fun updateVrServiceThreshold(value: Float) {
+        // Send threshold update to VR service through accessibility service
+        val intent = Intent(this, SmartAutoClickerService::class.java)
+        intent.action = "UPDATE_VR_THRESHOLD"
+        intent.putExtra("threshold", value)
+        startService(intent)
     }
 }
