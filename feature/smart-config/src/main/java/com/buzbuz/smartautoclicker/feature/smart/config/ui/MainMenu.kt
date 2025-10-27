@@ -130,8 +130,6 @@ class MainMenu(private val onStopClicked: () -> Unit) : OverlayMenu() {
             configMenuButton = viewBinding.btnClickList,
         )
 
-        // Start loading advertisement if needed
-        viewModel.loadAdIfNeeded(context)
     }
 
     override fun onStop() {
