@@ -37,11 +37,14 @@ jobs:
     - name: Build Debug APK
       run: ./gradlew assembleDebug
       
+    - name: List APK files
+      run: find smartautoclicker/build/outputs -name "*.apk" -type f
+      
     - name: Upload Debug APK
       uses: actions/upload-artifact@v4
       with:
         name: vr-magnet-clicker-debug
-        path: smartautoclicker/build/outputs/apk/debug/*.apk
+        path: smartautoclicker/build/outputs/apk/**/*.apk
         retention-days: 30
         
     - name: Upload Build Logs
