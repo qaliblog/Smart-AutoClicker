@@ -143,9 +143,9 @@ class VrMagnetometerService : Service(), SensorEventListener {
                 sensorManager?.registerListener(this, sensor, SensorManager.SENSOR_DELAY_FASTEST)
                 Log.i(TAG, "Using fastest sensor sampling rate")
             } catch (e: SecurityException) {
-                // Fallback to fast sampling rate if permission not available
-                Log.w(TAG, "Fastest sampling rate not available, using fast rate", e)
-                sensorManager?.registerListener(this, sensor, SensorManager.SENSOR_DELAY_FAST)
+                // Fallback to game sampling rate if permission not available
+                Log.w(TAG, "Fastest sampling rate not available, using game rate", e)
+                sensorManager?.registerListener(this, sensor, SensorManager.SENSOR_DELAY_GAME)
             }
         }
         
@@ -154,9 +154,9 @@ class VrMagnetometerService : Service(), SensorEventListener {
                 // Try fastest sampling rate first
                 sensorManager?.registerListener(this, sensor, SensorManager.SENSOR_DELAY_FASTEST)
             } catch (e: SecurityException) {
-                // Fallback to fast sampling rate if permission not available
-                Log.w(TAG, "Fastest sampling rate not available for accelerometer, using fast rate", e)
-                sensorManager?.registerListener(this, sensor, SensorManager.SENSOR_DELAY_FAST)
+                // Fallback to game sampling rate if permission not available
+                Log.w(TAG, "Fastest sampling rate not available for accelerometer, using game rate", e)
+                sensorManager?.registerListener(this, sensor, SensorManager.SENSOR_DELAY_GAME)
             }
         }
         
