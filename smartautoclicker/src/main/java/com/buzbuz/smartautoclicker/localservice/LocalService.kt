@@ -34,8 +34,6 @@ import com.buzbuz.smartautoclicker.feature.smart.config.ui.MainMenu
 import com.buzbuz.smartautoclicker.feature.dumb.config.ui.DumbMainMenu
 import com.buzbuz.smartautoclicker.feature.notifications.ServiceNotificationController
 import com.buzbuz.smartautoclicker.feature.notifications.ServiceNotificationListener
-import com.buzbuz.smartautoclicker.feature.revenue.IRevenueRepository
-import com.buzbuz.smartautoclicker.feature.revenue.UserBillingState
 import com.buzbuz.smartautoclicker.feature.smart.debugging.domain.DebuggingRepository
 
 import kotlinx.coroutines.CoroutineScope
@@ -56,7 +54,6 @@ class LocalService(
     private val settingsRepository: SettingsRepository,
     private val detectionRepository: DetectionRepository,
     private val dumbEngine: DumbEngine,
-    private val revenueRepository: IRevenueRepository,
     private val debugRepository: DebuggingRepository,
     private val onStart: (scenarioId: Long, isSmart: Boolean, foregroundNotification: Notification?) -> Unit,
     private val onStop: () -> Unit,
@@ -202,8 +199,7 @@ class LocalService(
     private fun play() {
         serviceScope.launch {
             if (state.isSmartLoaded && !detectionRepository.isRunning()) {
-                if (revenueRepository.userBillingState.value == UserBillingState.AD_REQUESTED) startPaywall()
-                else startSmartScenario()
+                startSmartScenario()
             } else if (!state.isSmartLoaded && !dumbEngine.isRunning.value) {
                 dumbEngine.startDumbScenario()
             }
@@ -219,24 +215,13 @@ class LocalService(
         }
     }
 
-    private fun startPaywall() {
-        revenueRepository.startPaywallUiFlow(context)
-
-        paywallResultJob = combine(revenueRepository.isBillingFlowInProgress, revenueRepository.userBillingState) { inProgress, state ->
-            if (inProgress) return@combine
-
-            if (state != UserBillingState.AD_REQUESTED) startSmartScenario()
-            paywallResultJob?.cancel()
-            paywallResultJob = null
-        }.launchIn(serviceScope)
-    }
 
     private fun startSmartScenario() {
         serviceScope.launch {
             detectionRepository.startDetection(
                 context,
                 debugRepository.getDebugDetectionListenerIfNeeded(context),
-                revenueRepository.consumeTrial(),
+                null, // No trial consumption needed
             )
         }
     }
