@@ -231,7 +231,6 @@ class SmartAutoClickerService : AccessibilityService() {
         actionExecutor.dump(writer)
         qualityRepository.dump(writer)
 
-        revenueRepository.dump(writer)
         reviewRepository.dump(writer)
     }
 

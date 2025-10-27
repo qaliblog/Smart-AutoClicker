@@ -81,15 +81,6 @@ class SettingsFragment : Fragment() {
             setOnClickListener(viewModel::toggleInputBlockWorkaround)
         }
 
-        viewBinding.fieldPrivacySettings.apply {
-            setTitle(requireContext().getString(R.string.field_privacy))
-            setOnClickListener { viewModel.showPrivacySettings(requireActivity()) }
-        }
-
-        viewBinding.fieldRemoveAds.apply {
-            setTitle(requireContext().getString(R.string.field_remove_ads))
-            setOnClickListener { viewModel.showPurchaseActivity(requireActivity()) }
-        }
 
         viewBinding.fieldTroubleshooting.apply {
             setTitle(requireContext().getString(R.string.field_troubleshooting))
@@ -105,8 +96,6 @@ class SettingsFragment : Fragment() {
                 launch { viewModel.isInputWorkaroundEnabled.collect(viewBinding.fieldInputBlockWorkaround::setChecked) }
                 launch { viewModel.shouldShowInputBlockWorkaround.collect(::updateInputBlockWorkaroundVisibility) }
                 launch { viewModel.shouldShowEntireScreenCapture.collect(::updateForceEntireScreenVisibility) }
-                launch { viewModel.shouldShowPrivacySettings.collect(::updatePrivacySettingsVisibility) }
-                launch { viewModel.shouldShowPurchase.collect(::updateRemoveAdsVisibility) }
             }
         }
     }
@@ -131,23 +120,4 @@ class SettingsFragment : Fragment() {
         }
     }
 
-    private fun updatePrivacySettingsVisibility(shouldBeVisible: Boolean) {
-        if (shouldBeVisible) {
-            viewBinding.dividerPrivacySettings.visibility = View.VISIBLE
-            viewBinding.fieldPrivacySettings.root.visibility = View.VISIBLE
-        } else {
-            viewBinding.dividerPrivacySettings.visibility = View.GONE
-            viewBinding.fieldPrivacySettings.root.visibility = View.GONE
-        }
-    }
-
-    private fun updateRemoveAdsVisibility(shouldBeVisible: Boolean) {
-        if (shouldBeVisible) {
-            viewBinding.dividerRemoveAds.visibility = View.VISIBLE
-            viewBinding.fieldRemoveAds.root.visibility = View.VISIBLE
-        } else {
-            viewBinding.dividerRemoveAds.visibility = View.GONE
-            viewBinding.fieldRemoveAds.root.visibility = View.GONE
-        }
-    }
 }
