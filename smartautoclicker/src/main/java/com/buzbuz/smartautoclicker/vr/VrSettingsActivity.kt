@@ -17,12 +17,18 @@
 package com.buzbuz.smartautoclicker.vr
 
 import android.app.Activity
+import android.app.ActivityManager
+import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
+import android.hardware.Sensor
+import android.hardware.SensorManager
 import android.os.Bundle
 import android.provider.Settings
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.buzbuz.smartautoclicker.R
+import com.buzbuz.smartautoclicker.SmartAutoClickerService
 import com.buzbuz.smartautoclicker.databinding.ActivityVrSettingsBinding
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -77,21 +83,56 @@ class VrSettingsActivity : AppCompatActivity() {
     
     private fun updateUI() {
         val isEnabled = vrClickManager.isEnabled()
+        val isAccessibilityEnabled = isAccessibilityServiceEnabled()
+        val isVrServiceRunning = isVrServiceRunning()
+        val hasMagnetometer = hasMagnetometer()
+        
         binding.apply {
-            btnEnableVr.isEnabled = !isEnabled
+            btnEnableVr.isEnabled = !isEnabled && isAccessibilityEnabled && hasMagnetometer
             btnDisableVr.isEnabled = isEnabled
-            btnTestClick.isEnabled = isEnabled
-            tvStatus.text = if (isEnabled) "VR Clicker: Enabled" else "VR Clicker: Disabled"
+            btnTestClick.isEnabled = isEnabled && isAccessibilityEnabled
+            
+            val statusText = when {
+                !hasMagnetometer -> "VR Clicker: Device has no magnetometer sensor"
+                !isAccessibilityEnabled -> "VR Clicker: Accessibility service not enabled"
+                isEnabled && isVrServiceRunning -> "VR Clicker: Enabled and Running"
+                isEnabled -> "VR Clicker: Enabled but service not running"
+                else -> "VR Clicker: Disabled"
+            }
+            tvStatus.text = statusText
         }
     }
     
     private fun enableVrFunctionality() {
+        // Check if device has magnetometer
+        if (!hasMagnetometer()) {
+            Toast.makeText(this, "This device does not have a magnetometer sensor required for VR functionality", Toast.LENGTH_LONG).show()
+            return
+        }
+        
+        // Check if accessibility service is enabled
+        if (!isAccessibilityServiceEnabled()) {
+            Toast.makeText(this, "Please enable accessibility service first", Toast.LENGTH_LONG).show()
+            openAccessibilitySettings()
+            return
+        }
+        
+        // Start VR service through the accessibility service
+        val intent = Intent(this, SmartAutoClickerService::class.java)
+        intent.action = "START_VR_SERVICE"
+        startService(intent)
+        
         vrClickManager.setEnabled(true)
         updateUI()
         Toast.makeText(this, "VR functionality enabled", Toast.LENGTH_SHORT).show()
     }
     
     private fun disableVrFunctionality() {
+        // Stop VR service through the accessibility service
+        val intent = Intent(this, SmartAutoClickerService::class.java)
+        intent.action = "STOP_VR_SERVICE"
+        startService(intent)
+        
         vrClickManager.setEnabled(false)
         updateUI()
         Toast.makeText(this, "VR functionality disabled", Toast.LENGTH_SHORT).show()
@@ -130,5 +171,45 @@ class VrSettingsActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         updateUI()
+    }
+    
+    private fun isAccessibilityServiceEnabled(): Boolean {
+        val accessibilityEnabled = Settings.Secure.getInt(
+            contentResolver,
+            Settings.Secure.ACCESSIBILITY_ENABLED, 0
+        )
+        
+        if (accessibilityEnabled == 1) {
+            val settingValue = Settings.Secure.getString(
+                contentResolver,
+                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+            )
+            if (settingValue != null) {
+                val serviceName = ComponentName(
+                    packageName,
+                    SmartAutoClickerService::class.java.name
+                ).flattenToString()
+                return settingValue.contains(serviceName)
+            }
+        }
+        return false
+    }
+    
+    private fun isVrServiceRunning(): Boolean {
+        val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        val runningServices = activityManager.getRunningServices(Integer.MAX_VALUE)
+        
+        for (serviceInfo in runningServices) {
+            if (serviceInfo.service.className == VrMagnetometerService::class.java.name) {
+                return true
+            }
+        }
+        return false
+    }
+    
+    private fun hasMagnetometer(): Boolean {
+        val sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        val magnetometer = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)
+        return magnetometer != null
     }
 }

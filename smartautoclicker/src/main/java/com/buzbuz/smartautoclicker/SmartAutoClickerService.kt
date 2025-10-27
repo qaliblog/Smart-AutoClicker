@@ -131,6 +131,18 @@ class SmartAutoClickerService : AccessibilityService() {
         )
     }
 
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        when (intent?.action) {
+            "START_VR_SERVICE" -> {
+                startVrService()
+            }
+            "STOP_VR_SERVICE" -> {
+                stopVrService()
+            }
+        }
+        return super.onStartCommand(intent, flags, startId)
+    }
+
     override fun onUnbind(intent: Intent?): Boolean {
         localServiceProvider.localServiceInstance?.apply {
             stop()
@@ -185,13 +197,12 @@ class SmartAutoClickerService : AccessibilityService() {
             // Set the static reference to click manager
             VrMagnetometerService.clickManager = vrClickManager
             
-            val vrIntent = Intent(this, VrMagnetometerService::class.java)
-            startService(vrIntent)
+            // Set context for VR click manager
+            vrClickManager.setContext(this)
             
-            // Set up VR service
-            vrClickManager.setEnabled(true)
-            
-            Log.i(TAG, "VR magnetometer service initialized")
+            // Only start VR service if it's enabled in settings
+            // The VR service will be started when VR functionality is enabled
+            Log.i(TAG, "VR service reference initialized")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to initialize VR service", e)
         }
@@ -205,6 +216,17 @@ class SmartAutoClickerService : AccessibilityService() {
             Log.i(TAG, "VR magnetometer service stopped")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to stop VR service", e)
+        }
+    }
+    
+    fun startVrService() {
+        try {
+            val vrIntent = Intent(this, VrMagnetometerService::class.java)
+            startService(vrIntent)
+            vrClickManager.setEnabled(true)
+            Log.i(TAG, "VR magnetometer service started")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start VR service", e)
         }
     }
 

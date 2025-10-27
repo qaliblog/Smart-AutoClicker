@@ -199,7 +199,11 @@ class VrMagnetometerService : Service(), SensorEventListener {
             isGestureInProgress = true
             
             // Trigger click action
-            clickManager?.performVrClick()
+            try {
+                clickManager?.performVrClick()
+            } catch (e: Exception) {
+                Log.e(TAG, "Error performing VR click", e)
+            }
             
             // Reset gesture state after a short delay
             serviceScope.launch {

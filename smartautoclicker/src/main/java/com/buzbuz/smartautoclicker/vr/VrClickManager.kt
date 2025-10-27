@@ -18,8 +18,11 @@ package com.buzbuz.smartautoclicker.vr
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
+import android.content.Context
 import android.graphics.Path
+import android.util.DisplayMetrics
 import android.util.Log
+import android.view.WindowManager
 import com.buzbuz.smartautoclicker.core.common.actions.AndroidActionExecutor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -38,6 +41,7 @@ class VrClickManager @Inject constructor(
     
     private var isEnabled = false
     private var clickScope = CoroutineScope(Dispatchers.Main)
+    private var context: Context? = null
     
     companion object {
         private const val TAG = "VrClickManager"
@@ -47,6 +51,10 @@ class VrClickManager @Inject constructor(
     fun setEnabled(enabled: Boolean) {
         isEnabled = enabled
         Log.i(TAG, "VR click manager ${if (enabled) "enabled" else "disabled"}")
+    }
+    
+    fun setContext(context: Context) {
+        this.context = context
     }
     
     fun isEnabled(): Boolean = isEnabled
@@ -68,21 +76,32 @@ class VrClickManager @Inject constructor(
             try {
                 // Create a simple tap gesture at the center of the screen
                 val gesture = createCenterClickGesture()
-                actionExecutor.dispatchGesture(gesture)
-                Log.d(TAG, "VR click dispatched successfully")
+                if (gesture != null) {
+                    actionExecutor.dispatchGesture(gesture)
+                    Log.d(TAG, "VR click dispatched successfully")
+                } else {
+                    Log.e(TAG, "Failed to create gesture - screen dimensions not available")
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to perform VR click", e)
             }
         }
     }
     
-    private fun createCenterClickGesture(): GestureDescription {
-        // Get screen dimensions - we'll use a reasonable default for VR
-        // In a real implementation, you might want to get actual screen dimensions
-        val screenWidth = 1080f
-        val screenHeight = 1920f
+    private fun createCenterClickGesture(): GestureDescription? {
+        val ctx = context ?: return null
+        
+        // Get actual screen dimensions
+        val windowManager = ctx.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        val displayMetrics = DisplayMetrics()
+        windowManager.defaultDisplay.getMetrics(displayMetrics)
+        
+        val screenWidth = displayMetrics.widthPixels.toFloat()
+        val screenHeight = displayMetrics.heightPixels.toFloat()
         val centerX = screenWidth / 2
         val centerY = screenHeight / 2
+        
+        Log.d(TAG, "Screen dimensions: ${screenWidth}x${screenHeight}, clicking at ($centerX, $centerY)")
         
         val path = Path().apply {
             moveTo(centerX, centerY)
@@ -104,15 +123,21 @@ class VrClickManager @Inject constructor(
         clickScope.launch {
             try {
                 val gesture = createClickGestureAt(x, y)
-                actionExecutor.dispatchGesture(gesture)
-                Log.d(TAG, "VR click dispatched successfully at ($x, $y)")
+                if (gesture != null) {
+                    actionExecutor.dispatchGesture(gesture)
+                    Log.d(TAG, "VR click dispatched successfully at ($x, $y)")
+                } else {
+                    Log.e(TAG, "Failed to create gesture at ($x, $y) - screen dimensions not available")
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to perform VR click at ($x, $y)", e)
             }
         }
     }
     
-    private fun createClickGestureAt(x: Float, y: Float): GestureDescription {
+    private fun createClickGestureAt(x: Float, y: Float): GestureDescription? {
+        val ctx = context ?: return null
+        
         val path = Path().apply {
             moveTo(x, y)
         }
