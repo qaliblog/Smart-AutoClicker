@@ -136,13 +136,28 @@ class VrMagnetometerService : Service(), SensorEventListener {
             return
         }
         
-        // Register listeners with high frequency
+        // Register listeners with appropriate sampling rate
         magnetometer?.let { sensor ->
-            sensorManager?.registerListener(this, sensor, SensorManager.SENSOR_DELAY_FASTEST)
+            try {
+                // Try fastest sampling rate first
+                sensorManager?.registerListener(this, sensor, SensorManager.SENSOR_DELAY_FASTEST)
+                Log.i(TAG, "Using fastest sensor sampling rate")
+            } catch (e: SecurityException) {
+                // Fallback to fast sampling rate if permission not available
+                Log.w(TAG, "Fastest sampling rate not available, using fast rate", e)
+                sensorManager?.registerListener(this, sensor, SensorManager.SENSOR_DELAY_FAST)
+            }
         }
         
         accelerometer?.let { sensor ->
-            sensorManager?.registerListener(this, sensor, SensorManager.SENSOR_DELAY_FASTEST)
+            try {
+                // Try fastest sampling rate first
+                sensorManager?.registerListener(this, sensor, SensorManager.SENSOR_DELAY_FASTEST)
+            } catch (e: SecurityException) {
+                // Fallback to fast sampling rate if permission not available
+                Log.w(TAG, "Fastest sampling rate not available for accelerometer, using fast rate", e)
+                sensorManager?.registerListener(this, sensor, SensorManager.SENSOR_DELAY_FAST)
+            }
         }
         
         Log.i(TAG, "Sensors initialized successfully")

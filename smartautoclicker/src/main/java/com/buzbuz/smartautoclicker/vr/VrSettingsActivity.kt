@@ -16,17 +16,22 @@
  */
 package com.buzbuz.smartautoclicker.vr
 
+import android.Manifest
 import android.app.Activity
 import android.app.ActivityManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.hardware.Sensor
 import android.hardware.SensorManager
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import com.buzbuz.smartautoclicker.R
 import com.buzbuz.smartautoclicker.SmartAutoClickerService
 import com.buzbuz.smartautoclicker.databinding.ActivityVrSettingsBinding
@@ -46,6 +51,7 @@ class VrSettingsActivity : AppCompatActivity() {
     companion object {
         private const val REQUEST_CODE_ACCESSIBILITY = 1001
         private const val REQUEST_CODE_BATTERY_OPTIMIZATION = 1002
+        private const val REQUEST_CODE_HIGH_SAMPLING_RATE = 1003
     }
     
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -117,6 +123,19 @@ class VrSettingsActivity : AppCompatActivity() {
             return
         }
         
+        // Check for high sampling rate permission on Android 14+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.HIGH_SAMPLING_RATE_SENSORS) 
+                != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(Manifest.permission.HIGH_SAMPLING_RATE_SENSORS),
+                    REQUEST_CODE_HIGH_SAMPLING_RATE
+                )
+                return
+            }
+        }
+        
         // Start VR service through the accessibility service
         val intent = Intent(this, SmartAutoClickerService::class.java)
         intent.action = "START_VR_SERVICE"
@@ -164,6 +183,23 @@ class VrSettingsActivity : AppCompatActivity() {
             }
             REQUEST_CODE_BATTERY_OPTIMIZATION -> {
                 Toast.makeText(this, "Please disable battery optimization for this app", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+    
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        
+        when (requestCode) {
+            REQUEST_CODE_HIGH_SAMPLING_RATE -> {
+                if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    // Permission granted, try to enable VR functionality again
+                    enableVrFunctionality()
+                } else {
+                    Toast.makeText(this, "High sampling rate permission denied. VR functionality will work with reduced sensitivity.", Toast.LENGTH_LONG).show()
+                    // Still try to enable VR functionality with fallback sampling rate
+                    enableVrFunctionality()
+                }
             }
         }
     }
