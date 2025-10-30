@@ -23,7 +23,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
-import android.content.SharedPreferences
+ 
 import android.content.pm.ServiceInfo
 import android.hardware.Sensor
 import android.hardware.SensorEvent
@@ -65,8 +65,7 @@ class VrMagnetometerService : Service(), SensorEventListener {
     // Gesture detection
     private var lastGestureTime = 0L
     private var isGestureInProgress = false
-    private var gestureThresholdClick = 80.0f // Change needed for click
-    private var gestureThresholdLongClick = 150.0f // Sustained change for long click
+    private val gestureThreshold = 180.0f // Static delta magnitude for click/long-click
     private var longThresholdCrossStart: Long? = null
     private val longClickHoldMs = 600L
     private var gestureCooldown = 1000L // Minimum time between gestures in milliseconds
@@ -78,8 +77,7 @@ class VrMagnetometerService : Service(), SensorEventListener {
     private var baselineMagneticField = FloatArray(3)
     private var isBaselineSet = false
     
-    // SharedPreferences for threshold persistence
-    private lateinit var sharedPreferences: SharedPreferences
+    // Static threshold mode: no preferences required
     
     // Click action
     private var clickAction: (() -> Unit)? = null
@@ -93,11 +91,6 @@ class VrMagnetometerService : Service(), SensorEventListener {
         private const val NOTIFICATION_ID = 1001
         private const val CHANNEL_ID = "vr_magnetometer_channel"
         private const val CHANNEL_NAME = "VR Magnetometer Service"
-        private const val PREF_NAME = "vr_settings"
-        private const val PREF_THRESHOLD_CLICK = "magnetic_field_threshold_click"
-        private const val PREF_THRESHOLD_LONG = "magnetic_field_threshold_long"
-        private const val DEFAULT_THRESHOLD_CLICK = 80.0f
-        private const val DEFAULT_THRESHOLD_LONG = 150.0f
     }
     
     inner class VrMagnetometerBinder : Binder() {
@@ -106,38 +99,12 @@ class VrMagnetometerService : Service(), SensorEventListener {
     
     override fun onCreate() {
         super.onCreate()
-        sharedPreferences = getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
-        loadThresholdFromPreferences()
         createNotificationChannel()
         initializeSensors()
     }
     
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // Handle thresholds update intent
-        if (intent?.action == "UPDATE_VR_THRESHOLDS") {
-            val click = intent.getFloatExtra("threshold_click", DEFAULT_THRESHOLD_CLICK)
-            val long = intent.getFloatExtra("threshold_long", DEFAULT_THRESHOLD_LONG)
-            setGestureThresholds(click, long)
-            Log.i(TAG, "Thresholds updated to: click=$click, long=$long")
-        }
-        
-        // Handle calibration reset intent
-        if (intent?.action == "RESET_VR_CALIBRATION") {
-            resetBaseline()
-            Log.i(TAG, "Calibration reset requested")
-        }
-        // Calibrate baseline now (when magnet is far)
-        if (intent?.action == "CALIBRATE_VR_BASELINE") {
-            calibrateBaselineNow()
-            Log.i(TAG, "Baseline calibrated from current field")
-        }
-        // Set thresholds from current magnetic field delta
-        if (intent?.action == "SET_CLICK_THRESHOLD_FROM_CURRENT") {
-            setThresholdFromCurrent(isLong = false)
-        }
-        if (intent?.action == "SET_LONG_THRESHOLD_FROM_CURRENT") {
-            setThresholdFromCurrent(isLong = true)
-        }
+        // Static threshold mode: no threshold/calibration intents handled
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
             // Android 15+ requires explicit foreground service type
@@ -153,20 +120,7 @@ class VrMagnetometerService : Service(), SensorEventListener {
         return START_STICKY // Restart if killed
     }
 
-    private fun setThresholdFromCurrent(isLong: Boolean) {
-        if (!isInitialized || !isBaselineSet) return
-        val deltaX = abs(lastMagneticField[0] - baselineMagneticField[0])
-        val deltaY = abs(lastMagneticField[1] - baselineMagneticField[1])
-        val deltaZ = abs(lastMagneticField[2] - baselineMagneticField[2])
-        val totalDelta = sqrt(deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ)
-        if (isLong) {
-            setGestureThresholds(gestureThresholdClick, totalDelta)
-            Log.i(TAG, "Set long threshold from current delta: $totalDelta")
-        } else {
-            setGestureThresholds(totalDelta, gestureThresholdLongClick)
-            Log.i(TAG, "Set click threshold from current delta: $totalDelta")
-        }
-    }
+    // Threshold-from-current removed (static threshold mode)
     
     override fun onBind(intent: Intent?): IBinder = binder
     
@@ -277,7 +231,7 @@ class VrMagnetometerService : Service(), SensorEventListener {
         val totalDelta = sqrt(deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ)
         
         // Click threshold
-        if (totalDelta > gestureThresholdClick && !isGestureInProgress) {
+        if (totalDelta > gestureThreshold && !isGestureInProgress) {
             val currentTime = System.currentTimeMillis()
             if (currentTime - lastGestureTime > gestureCooldown) {
                 Log.d(TAG, "Significant magnetic field change detected - Total delta: $totalDelta, X: ${values[0]}, Y: ${values[1]}, Z: ${values[2]}")
@@ -287,7 +241,7 @@ class VrMagnetometerService : Service(), SensorEventListener {
         }
 
         // Long click threshold tracking
-        val aboveLong = totalDelta > gestureThresholdLongClick
+        val aboveLong = totalDelta > gestureThreshold
         val now = System.currentTimeMillis()
         if (aboveLong) {
             if (longThresholdCrossStart == null) longThresholdCrossStart = now
@@ -354,7 +308,7 @@ class VrMagnetometerService : Service(), SensorEventListener {
                                         deltaFromBaselineZ * deltaFromBaselineZ)
         
         // Check if the change is significant enough
-        if (totalDeltaFromBaseline < gestureThresholdClick) {
+        if (totalDeltaFromBaseline < gestureThreshold) {
             return false
         }
         
@@ -407,7 +361,7 @@ class VrMagnetometerService : Service(), SensorEventListener {
         
         // Check if there's a consistent negative trend (X values becoming more negative)
         val negativeChanges = xChanges.count { it < 0 }
-        val significantChanges = xChanges.count { abs(it) > gestureThresholdClick * 0.2f }
+        val significantChanges = xChanges.count { abs(it) > gestureThreshold * 0.2f }
         
         Log.d(TAG, "Pull-down pattern analysis - X changes: $xChanges, negative: $negativeChanges, significant: $significantChanges")
         
@@ -440,7 +394,7 @@ class VrMagnetometerService : Service(), SensorEventListener {
         val xDominance = deltaX > (deltaY + deltaZ) * 0.8f
         
         // Check for significant X-axis change (should be around 100+ units for pull-down)
-        val significantXChange = deltaX > gestureThresholdClick * 0.6f
+        val significantXChange = deltaX > gestureThreshold * 0.6f
         
         // Check if the change is in the expected direction (more negative X values)
         val isPullDownDirection = values[0] < lastMagneticField[0] && deltaX > 50.0f
@@ -451,12 +405,12 @@ class VrMagnetometerService : Service(), SensorEventListener {
                                val prev = recent[0]
                                val curr = recent[1]
                                val xChange = abs(curr[0] - prev[0])
-                               xChange > gestureThresholdClick * 0.3f
+                               xChange > gestureThreshold * 0.3f
                            }
         
         // Additional validation: check if the change is significant enough from baseline
         val deltaFromBaselineX = abs(values[0] - baselineMagneticField[0])
-        val isSignificantFromBaseline = deltaFromBaselineX > gestureThresholdClick * 0.7f
+        val isSignificantFromBaseline = deltaFromBaselineX > gestureThreshold * 0.7f
         
         Log.d(TAG, "QMC6308 Detection - X: ${values[0]}, deltaX: $deltaX, xDominance: $xDominance, significant: $significantXChange, pullDown: $isPullDownDirection")
         
@@ -467,14 +421,7 @@ class VrMagnetometerService : Service(), SensorEventListener {
         clickAction = action
     }
     
-    fun setGestureThresholds(click: Float, long: Float) {
-        gestureThresholdClick = click
-        gestureThresholdLongClick = long
-        sharedPreferences.edit()
-            .putFloat(PREF_THRESHOLD_CLICK, click)
-            .putFloat(PREF_THRESHOLD_LONG, long)
-            .apply()
-    }
+    // Threshold setters removed (static threshold mode)
     
     fun resetBaseline() {
         isBaselineSet = false
@@ -483,11 +430,7 @@ class VrMagnetometerService : Service(), SensorEventListener {
         Log.i(TAG, "Baseline reset - recalibrating magnetic field detection")
     }
     
-    private fun loadThresholdFromPreferences() {
-        gestureThresholdClick = sharedPreferences.getFloat(PREF_THRESHOLD_CLICK, DEFAULT_THRESHOLD_CLICK)
-        gestureThresholdLongClick = sharedPreferences.getFloat(PREF_THRESHOLD_LONG, DEFAULT_THRESHOLD_LONG)
-        Log.i(TAG, "Loaded thresholds from preferences: click=$gestureThresholdClick, long=$gestureThresholdLongClick")
-    }
+    // Preference loading removed (static threshold mode)
 
     private fun calibrateBaselineNow() {
         if (isInitialized) {

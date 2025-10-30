@@ -139,21 +139,7 @@ class SmartAutoClickerService : AccessibilityService() {
             "STOP_VR_SERVICE" -> {
                 stopVrService()
             }
-            "UPDATE_VR_THRESHOLDS" -> {
-                updateVrServiceThresholds(intent)
-            }
-            "RESET_VR_CALIBRATION" -> {
-                resetVrServiceCalibration()
-            }
-            "CALIBRATE_VR_BASELINE" -> {
-                calibrateVrBaseline()
-            }
-            "SET_CLICK_THRESHOLD_FROM_CURRENT" -> {
-                setClickThresholdFromCurrent()
-            }
-            "SET_LONG_THRESHOLD_FROM_CURRENT" -> {
-                setLongThresholdFromCurrent()
-            }
+            // Threshold/calibration actions removed: static threshold used
         }
         return super.onStartCommand(intent, flags, startId)
     }
@@ -245,64 +231,7 @@ class SmartAutoClickerService : AccessibilityService() {
         }
     }
     
-    private fun updateVrServiceThresholds(intent: Intent) {
-        try {
-            val click = intent.getFloatExtra("threshold_click", 80.0f)
-            val long = intent.getFloatExtra("threshold_long", 150.0f)
-            val vrIntent = Intent(this, VrMagnetometerService::class.java)
-            vrIntent.action = "UPDATE_VR_THRESHOLDS"
-            vrIntent.putExtra("threshold_click", click)
-            vrIntent.putExtra("threshold_long", long)
-            startService(vrIntent)
-            Log.i(TAG, "VR service thresholds updated to: click=$click, long=$long")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to update VR service thresholds", e)
-        }
-    }
-    
-    private fun resetVrServiceCalibration() {
-        try {
-            val vrIntent = Intent(this, VrMagnetometerService::class.java)
-            vrIntent.action = "RESET_VR_CALIBRATION"
-            startService(vrIntent)
-            Log.i(TAG, "VR service calibration reset requested")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to reset VR service calibration", e)
-        }
-    }
-
-    private fun calibrateVrBaseline() {
-        try {
-            val vrIntent = Intent(this, VrMagnetometerService::class.java)
-            vrIntent.action = "CALIBRATE_VR_BASELINE"
-            startService(vrIntent)
-            Log.i(TAG, "VR service baseline calibration requested")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to request VR service baseline calibration", e)
-        }
-    }
-
-    private fun setClickThresholdFromCurrent() {
-        try {
-            val vrIntent = Intent(this, VrMagnetometerService::class.java)
-            vrIntent.action = "SET_CLICK_THRESHOLD_FROM_CURRENT"
-            startService(vrIntent)
-            Log.i(TAG, "VR service set click threshold from current field requested")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to request click threshold set from current field", e)
-        }
-    }
-
-    private fun setLongThresholdFromCurrent() {
-        try {
-            val vrIntent = Intent(this, VrMagnetometerService::class.java)
-            vrIntent.action = "SET_LONG_THRESHOLD_FROM_CURRENT"
-            startService(vrIntent)
-            Log.i(TAG, "VR service set long threshold from current field requested")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to request long threshold set from current field", e)
-        }
-    }
+    // Removed threshold/calibration helpers
 
     override fun onKeyEvent(event: KeyEvent?): Boolean =
         localService?.onKeyEvent(event) ?: super.onKeyEvent(event)
