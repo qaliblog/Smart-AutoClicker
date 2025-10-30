@@ -56,7 +56,8 @@ class VrSettingsActivity : AppCompatActivity() {
         private const val REQUEST_CODE_HIGH_SAMPLING_RATE = 1003
         private const val PREF_NAME = "vr_settings"
         private const val PREF_THRESHOLD = "magnetic_field_threshold"
-        private const val DEFAULT_THRESHOLD = 15.0f
+        // Keep in sync with XML slider default value
+        private const val DEFAULT_THRESHOLD = 80.0f
     }
     
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -128,10 +129,12 @@ class VrSettingsActivity : AppCompatActivity() {
             }
             tvStatus.text = statusText
             
-            // Load and set threshold value
-            val thresholdValue = getThresholdValue()
-            sliderThreshold.value = thresholdValue
-            updateThresholdValue(thresholdValue)
+            // Load, clamp to slider range, persist if corrected, and set value
+            val storedThreshold = getThresholdValue()
+            val clampedThreshold = clampToSliderRange(storedThreshold)
+            if (clampedThreshold != storedThreshold) saveThresholdValue(clampedThreshold)
+            sliderThreshold.value = clampedThreshold
+            updateThresholdValue(clampedThreshold)
         }
     }
     
@@ -280,8 +283,9 @@ class VrSettingsActivity : AppCompatActivity() {
     }
     
     private fun saveThresholdValue(value: Float) {
+        val clamped = clampToSliderRange(value)
         sharedPreferences.edit()
-            .putFloat(PREF_THRESHOLD, value)
+            .putFloat(PREF_THRESHOLD, clamped)
             .apply()
     }
     
@@ -293,7 +297,7 @@ class VrSettingsActivity : AppCompatActivity() {
         // Send threshold update to VR service through accessibility service
         val intent = Intent(this, SmartAutoClickerService::class.java)
         intent.action = "UPDATE_VR_THRESHOLD"
-        intent.putExtra("threshold", value)
+        intent.putExtra("threshold", clampToSliderRange(value))
         startService(intent)
     }
     
@@ -304,5 +308,16 @@ class VrSettingsActivity : AppCompatActivity() {
         startService(intent)
         
         Toast.makeText(this, "Calibration reset. The app will recalibrate magnetic field detection.", Toast.LENGTH_LONG).show()
+    }
+
+    private fun clampToSliderRange(value: Float): Float {
+        // binding is initialized when this is called
+        val min = binding.sliderThreshold.valueFrom
+        val max = binding.sliderThreshold.valueTo
+        return when {
+            value < min -> min
+            value > max -> max
+            else -> value
+        }
     }
 }
