@@ -418,7 +418,7 @@ class VrMagnetometerService : Service(), SensorEventListener {
         val xDominance = deltaX > (deltaY + deltaZ) * 0.8f
         
         // Check for significant X-axis change (should be around 100+ units for pull-down)
-        val significantXChange = deltaX > gestureThreshold * 0.6f
+        val significantXChange = deltaX > gestureThresholdClick * 0.6f
         
         // Check if the change is in the expected direction (more negative X values)
         val isPullDownDirection = values[0] < lastMagneticField[0] && deltaX > 50.0f
