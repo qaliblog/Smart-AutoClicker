@@ -134,8 +134,8 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:valueFrom="20.0"
-                    android:valueTo="150.0"
+                    android:valueFrom="-200.0"
+                    android:valueTo="300.0"
                     android:value="80.0"
                     android:stepSize="5.0" />
 
