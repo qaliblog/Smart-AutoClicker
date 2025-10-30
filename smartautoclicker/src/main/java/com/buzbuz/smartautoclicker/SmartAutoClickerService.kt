@@ -148,6 +148,12 @@ class SmartAutoClickerService : AccessibilityService() {
             "CALIBRATE_VR_BASELINE" -> {
                 calibrateVrBaseline()
             }
+            "SET_CLICK_THRESHOLD_FROM_CURRENT" -> {
+                setClickThresholdFromCurrent()
+            }
+            "SET_LONG_THRESHOLD_FROM_CURRENT" -> {
+                setLongThresholdFromCurrent()
+            }
         }
         return super.onStartCommand(intent, flags, startId)
     }
@@ -273,6 +279,28 @@ class SmartAutoClickerService : AccessibilityService() {
             Log.i(TAG, "VR service baseline calibration requested")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to request VR service baseline calibration", e)
+        }
+    }
+
+    private fun setClickThresholdFromCurrent() {
+        try {
+            val vrIntent = Intent(this, VrMagnetometerService::class.java)
+            vrIntent.action = "SET_CLICK_THRESHOLD_FROM_CURRENT"
+            startService(vrIntent)
+            Log.i(TAG, "VR service set click threshold from current field requested")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to request click threshold set from current field", e)
+        }
+    }
+
+    private fun setLongThresholdFromCurrent() {
+        try {
+            val vrIntent = Intent(this, VrMagnetometerService::class.java)
+            vrIntent.action = "SET_LONG_THRESHOLD_FROM_CURRENT"
+            startService(vrIntent)
+            Log.i(TAG, "VR service set long threshold from current field requested")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to request long threshold set from current field", e)
         }
     }
 

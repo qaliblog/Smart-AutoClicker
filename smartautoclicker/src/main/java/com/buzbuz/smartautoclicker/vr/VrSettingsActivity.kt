@@ -101,6 +101,8 @@ class VrSettingsActivity : AppCompatActivity() {
             
             // Inputs: update on focus change or when pressing done handled via explicit save below
             btnCalibrateBaseline.setOnClickListener { calibrateBaseline() }
+            btnSetClickFromCurrent.setOnClickListener { setClickFromCurrent() }
+            btnSetLongFromCurrent.setOnClickListener { setLongFromCurrent() }
         }
     }
     
@@ -312,6 +314,20 @@ class VrSettingsActivity : AppCompatActivity() {
         intent.action = "CALIBRATE_VR_BASELINE"
         startService(intent)
         Toast.makeText(this, "Baseline calibrated. Ensure magnet is far during calibration.", Toast.LENGTH_LONG).show()
+    }
+
+    private fun setClickFromCurrent() {
+        val intent = Intent(this, SmartAutoClickerService::class.java)
+        intent.action = "SET_CLICK_THRESHOLD_FROM_CURRENT"
+        startService(intent)
+        Toast.makeText(this, "Click threshold set from current field.", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun setLongFromCurrent() {
+        val intent = Intent(this, SmartAutoClickerService::class.java)
+        intent.action = "SET_LONG_THRESHOLD_FROM_CURRENT"
+        startService(intent)
+        Toast.makeText(this, "Long-click threshold set from current field.", Toast.LENGTH_SHORT).show()
     }
 
     // Call this when user finishes editing thresholds (e.g., onPause)

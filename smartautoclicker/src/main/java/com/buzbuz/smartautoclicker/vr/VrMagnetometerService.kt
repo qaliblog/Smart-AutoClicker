@@ -131,6 +131,13 @@ class VrMagnetometerService : Service(), SensorEventListener {
             calibrateBaselineNow()
             Log.i(TAG, "Baseline calibrated from current field")
         }
+        // Set thresholds from current magnetic field delta
+        if (intent?.action == "SET_CLICK_THRESHOLD_FROM_CURRENT") {
+            setThresholdFromCurrent(isLong = false)
+        }
+        if (intent?.action == "SET_LONG_THRESHOLD_FROM_CURRENT") {
+            setThresholdFromCurrent(isLong = true)
+        }
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
             // Android 15+ requires explicit foreground service type
@@ -144,6 +151,21 @@ class VrMagnetometerService : Service(), SensorEventListener {
             startForeground(NOTIFICATION_ID, createNotification())
         }
         return START_STICKY // Restart if killed
+    }
+
+    private fun setThresholdFromCurrent(isLong: Boolean) {
+        if (!isInitialized || !isBaselineSet) return
+        val deltaX = abs(lastMagneticField[0] - baselineMagneticField[0])
+        val deltaY = abs(lastMagneticField[1] - baselineMagneticField[1])
+        val deltaZ = abs(lastMagneticField[2] - baselineMagneticField[2])
+        val totalDelta = sqrt(deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ)
+        if (isLong) {
+            setGestureThresholds(gestureThresholdClick, totalDelta)
+            Log.i(TAG, "Set long threshold from current delta: $totalDelta")
+        } else {
+            setGestureThresholds(totalDelta, gestureThresholdLongClick)
+            Log.i(TAG, "Set click threshold from current delta: $totalDelta")
+        }
     }
     
     override fun onBind(intent: Intent?): IBinder = binder
