@@ -46,6 +46,7 @@ class VrClickManager @Inject constructor(
     companion object {
         private const val TAG = "VrClickManager"
         private const val CLICK_DURATION = 50L // Click duration in milliseconds
+        private const val LONG_CLICK_DURATION = 600L // Long click press duration
     }
     
     fun setEnabled(enabled: Boolean) {
@@ -87,6 +88,27 @@ class VrClickManager @Inject constructor(
             }
         }
     }
+
+    fun performVrLongClick() {
+        if (!isEnabled) {
+            Log.d(TAG, "VR click manager is disabled, ignoring long click")
+            return
+        }
+        Log.i(TAG, "Performing VR long click")
+        clickScope.launch {
+            try {
+                val gesture = createCenterLongClickGesture()
+                if (gesture != null) {
+                    actionExecutor.dispatchGesture(gesture)
+                    Log.d(TAG, "VR long click dispatched successfully")
+                } else {
+                    Log.e(TAG, "Failed to create long click gesture - screen dimensions not available")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to perform VR long click", e)
+            }
+        }
+    }
     
     private fun createCenterClickGesture(): GestureDescription? {
         val ctx = context ?: return null
@@ -109,6 +131,19 @@ class VrClickManager @Inject constructor(
         
         return GestureDescription.Builder()
             .addStroke(GestureDescription.StrokeDescription(path, 0, CLICK_DURATION))
+            .build()
+    }
+
+    private fun createCenterLongClickGesture(): GestureDescription? {
+        val ctx = context ?: return null
+        val windowManager = ctx.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        val displayMetrics = DisplayMetrics()
+        windowManager.defaultDisplay.getMetrics(displayMetrics)
+        val centerX = displayMetrics.widthPixels / 2f
+        val centerY = displayMetrics.heightPixels / 2f
+        val path = Path().apply { moveTo(centerX, centerY) }
+        return GestureDescription.Builder()
+            .addStroke(GestureDescription.StrokeDescription(path, 0, LONG_CLICK_DURATION))
             .build()
     }
     

@@ -65,7 +65,10 @@ class VrMagnetometerService : Service(), SensorEventListener {
     // Gesture detection
     private var lastGestureTime = 0L
     private var isGestureInProgress = false
-    private var gestureThreshold = 15.0f // Minimum change in magnetic field to trigger gesture
+    private var gestureThresholdClick = 80.0f // Change needed for click
+    private var gestureThresholdLongClick = 150.0f // Sustained change for long click
+    private var longThresholdCrossStart: Long? = null
+    private val longClickHoldMs = 600L
     private var gestureCooldown = 1000L // Minimum time between gestures in milliseconds
     
     // Enhanced gesture detection
@@ -91,8 +94,10 @@ class VrMagnetometerService : Service(), SensorEventListener {
         private const val CHANNEL_ID = "vr_magnetometer_channel"
         private const val CHANNEL_NAME = "VR Magnetometer Service"
         private const val PREF_NAME = "vr_settings"
-        private const val PREF_THRESHOLD = "magnetic_field_threshold"
-        private const val DEFAULT_THRESHOLD = 80.0f // Adjusted for QMC6308 magnetometer (difference ~111 units)
+        private const val PREF_THRESHOLD_CLICK = "magnetic_field_threshold_click"
+        private const val PREF_THRESHOLD_LONG = "magnetic_field_threshold_long"
+        private const val DEFAULT_THRESHOLD_CLICK = 80.0f
+        private const val DEFAULT_THRESHOLD_LONG = 150.0f
     }
     
     inner class VrMagnetometerBinder : Binder() {
@@ -108,17 +113,23 @@ class VrMagnetometerService : Service(), SensorEventListener {
     }
     
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // Handle threshold update intent
-        if (intent?.action == "UPDATE_VR_THRESHOLD") {
-            val newThreshold = intent.getFloatExtra("threshold", DEFAULT_THRESHOLD)
-            setGestureThreshold(newThreshold)
-            Log.i(TAG, "Threshold updated to: $newThreshold")
+        // Handle thresholds update intent
+        if (intent?.action == "UPDATE_VR_THRESHOLDS") {
+            val click = intent.getFloatExtra("threshold_click", DEFAULT_THRESHOLD_CLICK)
+            val long = intent.getFloatExtra("threshold_long", DEFAULT_THRESHOLD_LONG)
+            setGestureThresholds(click, long)
+            Log.i(TAG, "Thresholds updated to: click=$click, long=$long")
         }
         
         // Handle calibration reset intent
         if (intent?.action == "RESET_VR_CALIBRATION") {
             resetBaseline()
             Log.i(TAG, "Calibration reset requested")
+        }
+        // Calibrate baseline now (when magnet is far)
+        if (intent?.action == "CALIBRATE_VR_BASELINE") {
+            calibrateBaselineNow()
+            Log.i(TAG, "Baseline calibrated from current field")
         }
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
@@ -243,14 +254,38 @@ class VrMagnetometerService : Service(), SensorEventListener {
         val deltaZ = abs(values[2] - lastMagneticField[2])
         val totalDelta = sqrt(deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ)
         
-        // Check if this is a significant change (magnet pull-down)
-        if (totalDelta > gestureThreshold && !isGestureInProgress) {
+        // Click threshold
+        if (totalDelta > gestureThresholdClick && !isGestureInProgress) {
             val currentTime = System.currentTimeMillis()
             if (currentTime - lastGestureTime > gestureCooldown) {
                 Log.d(TAG, "Significant magnetic field change detected - Total delta: $totalDelta, X: ${values[0]}, Y: ${values[1]}, Z: ${values[2]}")
                 detectGesture(values)
                 lastGestureTime = currentTime
             }
+        }
+
+        // Long click threshold tracking
+        val aboveLong = totalDelta > gestureThresholdLongClick
+        val now = System.currentTimeMillis()
+        if (aboveLong) {
+            if (longThresholdCrossStart == null) longThresholdCrossStart = now
+            val heldFor = now - (longThresholdCrossStart ?: now)
+            if (heldFor >= longClickHoldMs && !isGestureInProgress) {
+                // Trigger long click
+                try {
+                    clickManager?.performVrLongClick()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error performing VR long click", e)
+                }
+                isGestureInProgress = true
+                serviceScope.launch {
+                    delay(500)
+                    isGestureInProgress = false
+                }
+                longThresholdCrossStart = null
+            }
+        } else {
+            longThresholdCrossStart = null
         }
         
         lastMagneticField = values.clone()
@@ -297,7 +332,7 @@ class VrMagnetometerService : Service(), SensorEventListener {
                                         deltaFromBaselineZ * deltaFromBaselineZ)
         
         // Check if the change is significant enough
-        if (totalDeltaFromBaseline < gestureThreshold) {
+        if (totalDeltaFromBaseline < gestureThresholdClick) {
             return false
         }
         
@@ -350,7 +385,7 @@ class VrMagnetometerService : Service(), SensorEventListener {
         
         // Check if there's a consistent negative trend (X values becoming more negative)
         val negativeChanges = xChanges.count { it < 0 }
-        val significantChanges = xChanges.count { abs(it) > gestureThreshold * 0.2f }
+        val significantChanges = xChanges.count { abs(it) > gestureThresholdClick * 0.2f }
         
         Log.d(TAG, "Pull-down pattern analysis - X changes: $xChanges, negative: $negativeChanges, significant: $significantChanges")
         
@@ -394,12 +429,12 @@ class VrMagnetometerService : Service(), SensorEventListener {
                                val prev = recent[0]
                                val curr = recent[1]
                                val xChange = abs(curr[0] - prev[0])
-                               xChange > gestureThreshold * 0.3f
+                               xChange > gestureThresholdClick * 0.3f
                            }
         
         // Additional validation: check if the change is significant enough from baseline
         val deltaFromBaselineX = abs(values[0] - baselineMagneticField[0])
-        val isSignificantFromBaseline = deltaFromBaselineX > gestureThreshold * 0.7f
+        val isSignificantFromBaseline = deltaFromBaselineX > gestureThresholdClick * 0.7f
         
         Log.d(TAG, "QMC6308 Detection - X: ${values[0]}, deltaX: $deltaX, xDominance: $xDominance, significant: $significantXChange, pullDown: $isPullDownDirection")
         
@@ -410,11 +445,12 @@ class VrMagnetometerService : Service(), SensorEventListener {
         clickAction = action
     }
     
-    fun setGestureThreshold(threshold: Float) {
-        gestureThreshold = threshold
-        // Save to preferences
+    fun setGestureThresholds(click: Float, long: Float) {
+        gestureThresholdClick = click
+        gestureThresholdLongClick = long
         sharedPreferences.edit()
-            .putFloat(PREF_THRESHOLD, threshold)
+            .putFloat(PREF_THRESHOLD_CLICK, click)
+            .putFloat(PREF_THRESHOLD_LONG, long)
             .apply()
     }
     
@@ -426,8 +462,16 @@ class VrMagnetometerService : Service(), SensorEventListener {
     }
     
     private fun loadThresholdFromPreferences() {
-        gestureThreshold = sharedPreferences.getFloat(PREF_THRESHOLD, DEFAULT_THRESHOLD)
-        Log.i(TAG, "Loaded threshold from preferences: $gestureThreshold")
+        gestureThresholdClick = sharedPreferences.getFloat(PREF_THRESHOLD_CLICK, DEFAULT_THRESHOLD_CLICK)
+        gestureThresholdLongClick = sharedPreferences.getFloat(PREF_THRESHOLD_LONG, DEFAULT_THRESHOLD_LONG)
+        Log.i(TAG, "Loaded thresholds from preferences: click=$gestureThresholdClick, long=$gestureThresholdLongClick")
+    }
+
+    private fun calibrateBaselineNow() {
+        if (isInitialized) {
+            baselineMagneticField = lastMagneticField.clone()
+            isBaselineSet = true
+        }
     }
     
     fun setGestureCooldown(cooldown: Long) {

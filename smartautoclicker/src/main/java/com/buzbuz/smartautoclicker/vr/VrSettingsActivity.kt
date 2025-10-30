@@ -55,9 +55,10 @@ class VrSettingsActivity : AppCompatActivity() {
         private const val REQUEST_CODE_BATTERY_OPTIMIZATION = 1002
         private const val REQUEST_CODE_HIGH_SAMPLING_RATE = 1003
         private const val PREF_NAME = "vr_settings"
-        private const val PREF_THRESHOLD = "magnetic_field_threshold"
-        // Keep in sync with XML slider default value
-        private const val DEFAULT_THRESHOLD = 80.0f
+        private const val PREF_THRESHOLD_CLICK = "magnetic_field_threshold_click"
+        private const val PREF_THRESHOLD_LONG = "magnetic_field_threshold_long"
+        private const val DEFAULT_THRESHOLD_CLICK = 80.0f
+        private const val DEFAULT_THRESHOLD_LONG = 150.0f
     }
     
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -98,14 +99,8 @@ class VrSettingsActivity : AppCompatActivity() {
                 resetCalibration()
             }
             
-            // Setup threshold slider
-            sliderThreshold.addOnChangeListener { _, value, fromUser ->
-                if (fromUser) {
-                    updateThresholdValue(value)
-                    saveThresholdValue(value)
-                    updateVrServiceThreshold(value)
-                }
-            }
+            // Inputs: update on focus change or when pressing done handled via explicit save below
+            btnCalibrateBaseline.setOnClickListener { calibrateBaseline() }
         }
     }
     
@@ -129,12 +124,12 @@ class VrSettingsActivity : AppCompatActivity() {
             }
             tvStatus.text = statusText
             
-            // Load, clamp to slider range, persist if corrected, and set value
-            val storedThreshold = getThresholdValue()
-            val clampedThreshold = clampToSliderRange(storedThreshold)
-            if (clampedThreshold != storedThreshold) saveThresholdValue(clampedThreshold)
-            sliderThreshold.value = clampedThreshold
-            updateThresholdValue(clampedThreshold)
+            // Load thresholds and populate inputs
+            val click = getClickThreshold()
+            val long = getLongClickThreshold()
+            binding.inputClickThreshold.setText(String.format("%.1f", click))
+            binding.inputLongClickThreshold.setText(String.format("%.1f", long))
+            updateThresholdValue(click, long)
         }
     }
     
@@ -278,26 +273,28 @@ class VrSettingsActivity : AppCompatActivity() {
         return magnetometer != null
     }
     
-    private fun getThresholdValue(): Float {
-        return sharedPreferences.getFloat(PREF_THRESHOLD, DEFAULT_THRESHOLD)
-    }
+    private fun getClickThreshold(): Float =
+        sharedPreferences.getFloat(PREF_THRESHOLD_CLICK, DEFAULT_THRESHOLD_CLICK)
+
+    private fun getLongClickThreshold(): Float =
+        sharedPreferences.getFloat(PREF_THRESHOLD_LONG, DEFAULT_THRESHOLD_LONG)
     
-    private fun saveThresholdValue(value: Float) {
-        val clamped = clampToSliderRange(value)
+    private fun saveThresholds(click: Float, long: Float) {
         sharedPreferences.edit()
-            .putFloat(PREF_THRESHOLD, clamped)
+            .putFloat(PREF_THRESHOLD_CLICK, click)
+            .putFloat(PREF_THRESHOLD_LONG, long)
             .apply()
     }
     
-    private fun updateThresholdValue(value: Float) {
-        binding.tvThresholdValue.text = "Current Threshold: ${String.format("%.1f", value)}"
+    private fun updateThresholdValue(click: Float, long: Float) {
+        binding.tvThresholdValue.text = "Click: ${String.format("%.1f", click)}, Long: ${String.format("%.1f", long)}"
     }
     
-    private fun updateVrServiceThreshold(value: Float) {
-        // Send threshold update to VR service through accessibility service
+    private fun updateVrServiceThresholds(click: Float, long: Float) {
         val intent = Intent(this, SmartAutoClickerService::class.java)
-        intent.action = "UPDATE_VR_THRESHOLD"
-        intent.putExtra("threshold", clampToSliderRange(value))
+        intent.action = "UPDATE_VR_THRESHOLDS"
+        intent.putExtra("threshold_click", click)
+        intent.putExtra("threshold_long", long)
         startService(intent)
     }
     
@@ -310,14 +307,27 @@ class VrSettingsActivity : AppCompatActivity() {
         Toast.makeText(this, "Calibration reset. The app will recalibrate magnetic field detection.", Toast.LENGTH_LONG).show()
     }
 
-    private fun clampToSliderRange(value: Float): Float {
-        // binding is initialized when this is called
-        val min = binding.sliderThreshold.valueFrom
-        val max = binding.sliderThreshold.valueTo
-        return when {
-            value < min -> min
-            value > max -> max
-            else -> value
-        }
+    private fun calibrateBaseline() {
+        val intent = Intent(this, SmartAutoClickerService::class.java)
+        intent.action = "CALIBRATE_VR_BASELINE"
+        startService(intent)
+        Toast.makeText(this, "Baseline calibrated. Ensure magnet is far during calibration.", Toast.LENGTH_LONG).show()
     }
+
+    // Call this when user finishes editing thresholds (e.g., onPause)
+    private fun readAndPersistThresholds() {
+        val click = binding.inputClickThreshold.text?.toString()?.toFloatOrNull() ?: DEFAULT_THRESHOLD_CLICK
+        val long = binding.inputLongClickThreshold.text?.toString()?.toFloatOrNull() ?: DEFAULT_THRESHOLD_LONG
+        saveThresholds(click, long)
+        updateThresholdValue(click, long)
+        updateVrServiceThresholds(click, long)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        readAndPersistThresholds()
+    }
+
+    // No clamping: user can input any numeric value
+    
 }

@@ -139,11 +139,14 @@ class SmartAutoClickerService : AccessibilityService() {
             "STOP_VR_SERVICE" -> {
                 stopVrService()
             }
-            "UPDATE_VR_THRESHOLD" -> {
-                updateVrServiceThreshold(intent)
+            "UPDATE_VR_THRESHOLDS" -> {
+                updateVrServiceThresholds(intent)
             }
             "RESET_VR_CALIBRATION" -> {
                 resetVrServiceCalibration()
+            }
+            "CALIBRATE_VR_BASELINE" -> {
+                calibrateVrBaseline()
             }
         }
         return super.onStartCommand(intent, flags, startId)
@@ -236,16 +239,18 @@ class SmartAutoClickerService : AccessibilityService() {
         }
     }
     
-    private fun updateVrServiceThreshold(intent: Intent) {
+    private fun updateVrServiceThresholds(intent: Intent) {
         try {
-            val threshold = intent.getFloatExtra("threshold", 15.0f)
+            val click = intent.getFloatExtra("threshold_click", 80.0f)
+            val long = intent.getFloatExtra("threshold_long", 150.0f)
             val vrIntent = Intent(this, VrMagnetometerService::class.java)
-            vrIntent.action = "UPDATE_VR_THRESHOLD"
-            vrIntent.putExtra("threshold", threshold)
+            vrIntent.action = "UPDATE_VR_THRESHOLDS"
+            vrIntent.putExtra("threshold_click", click)
+            vrIntent.putExtra("threshold_long", long)
             startService(vrIntent)
-            Log.i(TAG, "VR service threshold updated to: $threshold")
+            Log.i(TAG, "VR service thresholds updated to: click=$click, long=$long")
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to update VR service threshold", e)
+            Log.e(TAG, "Failed to update VR service thresholds", e)
         }
     }
     
@@ -257,6 +262,17 @@ class SmartAutoClickerService : AccessibilityService() {
             Log.i(TAG, "VR service calibration reset requested")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to reset VR service calibration", e)
+        }
+    }
+
+    private fun calibrateVrBaseline() {
+        try {
+            val vrIntent = Intent(this, VrMagnetometerService::class.java)
+            vrIntent.action = "CALIBRATE_VR_BASELINE"
+            startService(vrIntent)
+            Log.i(TAG, "VR service baseline calibration requested")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to request VR service baseline calibration", e)
         }
     }
 
